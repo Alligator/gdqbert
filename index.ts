@@ -1,7 +1,28 @@
-const assert = require('assert');
-const Discord = require('discord.js');
-const fs = require('fs');
-const { get, set } = require('./nested-object-helpers');
+import Discord, { Message, MessageEmbed, Snowflake, TextChannel } from 'discord.js';
+import fs from 'fs';
+import { get, set } from './nested-object-helpers';
+
+// TODO
+// [ ] if only 1 match sub to that game
+// [ ] react instead of reply if the sub is good
+// [ ] say game name when subbing to a game that has been played
+// [ ] check diff on live vers
+// [ ] actually remove mentions
+
+interface Config {
+  statsFile: string;
+  marathonName: string;
+  botToken: string;
+  channels: string[];
+}
+
+interface Subscriptions {
+  [gameName: string]: {
+    [channelId: string]: {
+      [userId: string]: boolean;
+    }
+  }
+}
 
 //
 // arg parsing
@@ -17,17 +38,23 @@ if (argv.help) {
 }
 
 let ignore = !!argv['ignore-first'];
-const cfg = JSON.parse(fs.readFileSync(argv['config'] || 'config.json'));
+const cfg: Config = JSON.parse(fs.readFileSync(argv['config'] || 'config.json', { encoding: 'utf-8' }));
 
 
-function log(msg) {
+function log(msg: string) {
   const d = new Date();
   console.log(`${d.toISOString()} ${msg}`);
 }
 
+type StatGame = [number, string];
+interface Stats {
+  viewers: number[][];
+  games: StatGame[];
+}
+
 function getLatestStats() {
   const file = fs.readFileSync(cfg.statsFile);
-  const j = JSON.parse(file.toString());
+  const j = JSON.parse(file.toString()) as Stats;
   const now = new Date().getTime() / 1000;
 
   const validTotals = j.viewers.filter(v => v[1] && v[2]);
@@ -43,7 +70,7 @@ function getLatestStats() {
 //
 // subscription stuff
 //
-function getSubs() {
+function getSubs(): Subscriptions {
   try {
     return JSON.parse(fs.readFileSync('subs.json').toString());
   } catch (e) {
@@ -51,8 +78,8 @@ function getSubs() {
   }
 }
 
-function getSubsForUser(subs, channelId, userId) {
-  const foundSubs = [];
+function getSubsForUser(subs: Subscriptions, channelId: Snowflake, userId: Snowflake): string[] {
+  const foundSubs: { gameName: string, channelId: Snowflake }[] = [];
   Object.keys(subs).forEach((gameName) => {
     Object.keys(subs[gameName]).forEach((channelId) => {
       if (subs[gameName][channelId][userId]) {
@@ -65,12 +92,12 @@ function getSubsForUser(subs, channelId, userId) {
     .map(sub => sub.gameName);
 }
 
-function persistSubs(subs) {
+function persistSubs(subs: Subscriptions) {
   fs.writeFileSync('subs.json', JSON.stringify(subs, null, 2));
 }
 
 function getHelpEmbed() {
-  return new Discord.RichEmbed()
+  return new MessageEmbed()
     .setTitle('gdqbert help')
     .setDescription('gdqbert responds to the following commands:')
     .addField('@gdqbert Game Name Here', 'get gdqbert to @ you when that game is starting.')
@@ -78,9 +105,9 @@ function getHelpEmbed() {
     .addField('@gdqbert', 'find out which games gdqbert is going to @ you about.');
 }
 
-function findGame(gameName) {
+function findGame(gameName: string) {
   const file = fs.readFileSync(cfg.statsFile);
-  const j = JSON.parse(file.toString());
+  const j = JSON.parse(file.toString()) as Stats;
   const foundGame = j.games.find(g => g[1].toLowerCase() === gameName.toLowerCase());
   const bestGuesses = j.games.filter(g => g[1].toLowerCase().includes(gameName.toLowerCase()));
   return { foundGame, bestGuesses };
@@ -89,10 +116,10 @@ function findGame(gameName) {
 function run() {
   const client = new Discord.Client();
   const subscriptions = getSubs();
-  let currentGame = null;
-  let after = [];
+  let currentGame: string | null = null;
+  let after: StatGame[] = [];
 
-  function checkForNewGame(client, channelId, forceSend = false) {
+  function checkForNewGame(client: Discord.Client, channelId: Snowflake | null = null, forceSend = false) {
     const stats = getLatestStats();
     after = stats.after;
 
@@ -111,11 +138,11 @@ function run() {
     if (!channelId && timeDiff < (60 * 10)) {
       log('10 mins from next game, checking for subscriptions');
       if (subscriptions[nextGame]) {
-        subscriptions[nextGame].forEach((channelId) => {
+        Object.keys(subscriptions[nextGame]).forEach((channelId: Snowflake) => {
           const mentions = Object.keys(subscriptions[nextGame][channelId]).join(' ');
           log(`mentioning ${mentions} in ${channelId}`);
           if (mentions.length > 0) {
-            const channel = client.channels.get(channelId);
+            const channel = client.channels.cache.get(channelId) as TextChannel;
             channel.send(`${mentions} ${nextGame} is starting soon`);
             set(subscriptions, [nextGame, channelId], {});
           }
@@ -155,7 +182,7 @@ function run() {
         nextTimeMsg = `in ${mins} minutes`;
       }
 
-      const embed = new Discord.RichEmbed()
+      const embed = new MessageEmbed()
         .setTitle(cfg.marathonName)
         .setURL('https://twitch.tv/gamesdonequick')
         .addField('Current Game', currentGame)
@@ -164,18 +191,18 @@ function run() {
         .addField('Donation Total', '$' + stats.totals[2].toFixed(0), true);
 
       if (channelId) {
-        client.channels.get(channelId).send(embed);
+        (client.channels.cache.get(channelId) as TextChannel).send(embed);
       } else {
-        cfg.channels.forEach(channelId => client.channels.get(channelId).send(embed));
+        cfg.channels.forEach(channelId => (client.channels.cache.get(channelId) as TextChannel).send(embed));
       }
     }
   }
 
-  function notYetPlayed(gameName) {
+  function notYetPlayed(gameName: string) {
     return after.some(ag => ag[1].toLowerCase() === gameName.toLowerCase());
   }
 
-  function subscribe(message, game) {
+  function subscribe(message: Message, game: string) {
     log(`${message.author} trying to sub to ${game}`);
     const { foundGame, bestGuesses } = findGame(game);
     if (!foundGame) {
@@ -198,7 +225,7 @@ function run() {
     const channelId = message.channel.id;
     const userId = message.author.toString();
 
-    if (get(subscriptions, [gameName, channelId, userId])) {
+    if (get<boolean>(subscriptions, [gameName, channelId, userId])) {
       return `i'm already gonna yell at you when that starts!!`;
     }
 
@@ -215,11 +242,17 @@ function run() {
   });
 
   client.on('message', (message) => {
-    if (!message.isMentioned(client.user)) {
+    if (client.user) {
+      if (!message.mentions.has(client.user)) {
+        return;
+      }
+    }
+
+    if (!cfg.channels.includes(message.channel.id)) {
       return;
     }
 
-    log(`(${message.guild.name}) (${message.channel.name}) ${message.author.username} ${message.content}`);
+    log(`(${message.guild?.name}) (${(message.channel as TextChannel).name}) ${message.author.username} ${message.content}`);
     const content = message.content;
     const re = /[^ ]+ (.*)$/;
     const match = re.exec(content);

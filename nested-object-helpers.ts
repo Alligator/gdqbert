@@ -1,10 +1,10 @@
 //
 // lodash style get/set in nested object functions
 //
-function get(obj, path, def) {
+export function get<TResult>(obj: any, path: string[], def?: any): TResult {
   let current = obj;
 
-  const found = path.every((key) => {
+  const found = path.every((key: string) => {
     if (current[key]) {
       current = current[key];
       return current;
@@ -17,7 +17,7 @@ function get(obj, path, def) {
 // assert(get({ a: { b: { c: 3 } } }, ['a', 'b', 'c', 'd'], 'nowt'), 'nowt');
 // assert(get([null, { thing: [4, 5, 6] }], [1, 'thing', 2]), 6);
 
-function set(obj, path, value) {
+export function set(obj: any, path: string[], value: any) {
   let current = obj;
   path.forEach((key, idx) => {
     if (idx === path.length - 1) {
@@ -34,5 +34,3 @@ function set(obj, path, value) {
 // assert.deepEqual(obj, { a: 1, b: { c: 3 } });
 // set(obj, ['d', 'e'], []);
 // assert.deepEqual(obj, { a: 1, b: { c: 3 }, d: { e: [] } });
-
-module.exports = { get, set, wtf: 2 };

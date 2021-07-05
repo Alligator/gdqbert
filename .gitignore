@@ -1,3 +1,4 @@
 config.json
 subs.json
 node_modules/
+build/

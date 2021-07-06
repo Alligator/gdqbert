@@ -101,9 +101,17 @@ function getHelpEmbed() {
 function findMatchingGames(gameName: string): string[] {
   const file = fs.readFileSync(cfg.statsFile);
   const j = JSON.parse(file.toString()) as Stats;
-  return j.games
-    .filter(g => g[1].toLowerCase().includes(gameName.toLowerCase()))
-    .map(g => g[1]);
+  const candidates: string[] = [];
+  for (let i = 0; i < j.games.length; i++) {
+    const game = j.games[i];
+    if (game[1].toLowerCase() === gameName.toLowerCase()) {
+      // exact match, return only that
+      return [game[1]];
+    } else if (game[1].toLowerCase().includes(gameName.toLowerCase())) {
+      candidates.push(game[1]);
+    }
+  }
+    return candidates;
 }
 
 function run() {
@@ -228,8 +236,8 @@ function run() {
     set(subscriptions, [gameName, channelId, userId], true);
     log(`${message.author} subbed to ${game}`);
     persistSubs(subscriptions);
-    message.react('👍');
-    // return `ok, i'll yell at you when ${gameName} starts`;
+    // message.react('👍');
+    message.reply(`ok, i'll yell at you when ${gameName} starts`);
   }
 
   client.on('ready', () => {

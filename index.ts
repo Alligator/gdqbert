@@ -2,13 +2,6 @@ import Discord, { Message, MessageEmbed, Snowflake, TextChannel } from 'discord.
 import fs from 'fs';
 import { get, set } from './nested-object-helpers';
 
-// TODO
-// [ ] if only 1 match sub to that game
-// [ ] react instead of reply if the sub is good
-// [ ] say game name when subbing to a game that has been played
-// [ ] check diff on live vers
-// [ ] actually remove mentions
-
 interface Config {
   statsFile: string;
   marathonName: string;
@@ -105,12 +98,12 @@ function getHelpEmbed() {
     .addField('@gdqbert', 'find out which games gdqbert is going to @ you about.');
 }
 
-function findGame(gameName: string) {
+function findMatchingGames(gameName: string): string[] {
   const file = fs.readFileSync(cfg.statsFile);
   const j = JSON.parse(file.toString()) as Stats;
-  const foundGame = j.games.find(g => g[1].toLowerCase() === gameName.toLowerCase());
-  const bestGuesses = j.games.filter(g => g[1].toLowerCase().includes(gameName.toLowerCase()));
-  return { foundGame, bestGuesses };
+  return j.games
+    .filter(g => g[1].toLowerCase().includes(gameName.toLowerCase()))
+    .map(g => g[1]);
 }
 
 function run() {
@@ -144,9 +137,9 @@ function run() {
           if (mentions.length > 0) {
             const channel = client.channels.cache.get(channelId) as TextChannel;
             channel.send(`${mentions} ${nextGame} is starting soon`);
-            set(subscriptions, [nextGame, channelId], {});
           }
         });
+        delete subscriptions[nextGame];
         persistSubs(subscriptions);
       }
     }
@@ -204,35 +197,39 @@ function run() {
 
   function subscribe(message: Message, game: string) {
     log(`${message.author} trying to sub to ${game}`);
-    const { foundGame, bestGuesses } = findGame(game);
-    if (!foundGame) {
-      let msg = `no game '${game}' found`;
-      if (bestGuesses.length) {
-        // only show games after this one
-        const possibleGames = bestGuesses
-          .map(g => g[1])
-          .filter(notYetPlayed);
-        msg += ` possible matches:\n${possibleGames.join('\n')}`;
-      }
-      return msg;
+    const possibleGames = findMatchingGames(game);
+    if (possibleGames.length === 0) {
+      message.reply(`no game '${game}' found`);
+      return;
     }
 
-    const gameName = foundGame[1];
+    if (possibleGames.length > 1) {
+      const list = possibleGames
+        .filter(notYetPlayed)
+        .slice(0, 4);
+      message.reply(`which game did you mean? possible matches:\n${list.join('\n')}`);
+      return;
+    }
+
+    const gameName = possibleGames[0];
     if (!notYetPlayed(gameName)) {
-      return `that's already been played!!`;
+      message.reply(`${gameName} has already been played!`);
+      return;
     }
 
     const channelId = message.channel.id;
     const userId = message.author.toString();
 
     if (get<boolean>(subscriptions, [gameName, channelId, userId])) {
-      return `i'm already gonna yell at you when that starts!!`;
+      message.reply(`i'm already gonna yell at you when ${gameName} starts!!`);
+      return
     }
 
     set(subscriptions, [gameName, channelId, userId], true);
     log(`${message.author} subbed to ${game}`);
     persistSubs(subscriptions);
-    return `ok, i'll yell at you when ${gameName} starts`;
+    message.react('👍');
+    // return `ok, i'll yell at you when ${gameName} starts`;
   }
 
   client.on('ready', () => {
@@ -263,7 +260,7 @@ function run() {
       } else if (game === 'help') {
         message.channel.send(getHelpEmbed());
       } else {
-        message.reply(subscribe(message, game));
+        subscribe(message, game);
       }
     } else {
       const author = message.author.toString();

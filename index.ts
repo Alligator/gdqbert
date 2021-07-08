@@ -114,6 +114,19 @@ function findMatchingGames(gameName: string): string[] {
     return candidates;
 }
 
+function formatTimeDiff(timeDiff: number) {
+  const totalMins = timeDiff / 60;
+  const hours = Math.floor(totalMins / 60);
+  const mins = Math.floor(totalMins % 60);
+
+  if (hours === 1) {
+    return `in ${hours} hour ${mins} minutes`;
+  } else if (hours > 1) {
+    return `in ${hours} hours ${mins} minutes`;
+  }
+  return `in ${mins} minutes`;
+}
+
 function run() {
   const client = new Discord.Client();
   const subscriptions = getSubs();
@@ -170,24 +183,11 @@ function run() {
         log('forcing send');
       }
 
-      const totalMins = timeDiff / 60;
-      const hours = Math.floor(totalMins / 60);
-      const mins = Math.floor(totalMins % 60);
-
-      let nextTimeMsg = '';
-      if (hours === 1) {
-        nextTimeMsg = `in ${hours} hour ${mins} minutes`;
-      } else if (hours > 1) {
-        nextTimeMsg = `in ${hours} hours ${mins} minutes`;
-      } else {
-        nextTimeMsg = `in ${mins} minutes`;
-      }
-
       const embed = new MessageEmbed()
         .setTitle(cfg.marathonName)
         .setURL('https://twitch.tv/gamesdonequick')
         .addField('Current Game', currentGame)
-        .addField('Next Game', `${nextGame} ${nextTimeMsg}`)
+        .addField('Next Game', `${nextGame} ${formatTimeDiff(timeDiff)}`)
         .addField('Viewers', stats.totals[1], true)
         .addField('Donation Total', '$' + stats.totals[2].toFixed(0), true);
 
@@ -197,6 +197,27 @@ function run() {
         cfg.channels.forEach(channelId => (client.channels.cache.get(channelId) as TextChannel).send(embed));
       }
     }
+  }
+
+  function getScheduleEmbed() {
+    const embed = new MessageEmbed();
+    const now = new Date().getTime() / 1000;
+
+    for (let i = 0; i < 5; i++) {
+      const game = after[i];
+      if (!game)
+        break;
+
+      const [time, name] = after[i];
+      const timeDiff = time - now;
+
+      embed
+        .setTitle(cfg.marathonName)
+        .setURL('https://twitch.tv/gamesdonequick')
+        .addField(name, formatTimeDiff(timeDiff));
+    }
+
+    return embed;
   }
 
   function notYetPlayed(gameName: string) {
@@ -267,6 +288,8 @@ function run() {
         checkForNewGame(client, message.channel.id, true);
       } else if (game === 'help') {
         message.channel.send(getHelpEmbed());
+      } else if (game === 'schedule') {
+        message.channel.send(getScheduleEmbed());
       } else {
         subscribe(message, game);
       }

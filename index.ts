@@ -47,17 +47,21 @@ interface Stats {
 
 function getLatestStats() {
   const file = fs.readFileSync(cfg.statsFile);
-  const j = JSON.parse(file.toString()) as Stats;
-  const now = new Date().getTime() / 1000;
+  try {
+    const j = JSON.parse(file.toString()) as Stats;
+    const now = new Date().getTime() / 1000;
 
-  const validTotals = j.viewers.filter(v => v[1] && v[2]);
-  const totals = validTotals[validTotals.length - 1];
+    const validTotals = j.viewers.filter(v => v[1] && v[2]);
+    const totals = validTotals[validTotals.length - 1];
 
-  return {
-    before: j.games.filter(g => g[0] < now),
-    after: j.games.filter(g => g[0] >= now),
-    totals,
-  };
+    return {
+      before: j.games.filter(g => g[0] < now),
+      after: j.games.filter(g => g[0] >= now),
+      totals,
+    };
+  } catch (e) {
+    return null;
+  }
 }
 
 //
@@ -135,6 +139,9 @@ function run() {
 
   function checkForNewGame(client: Discord.Client, channelId: Snowflake | null = null, forceSend = false) {
     const stats = getLatestStats();
+    if (!stats) {
+      return;
+    }
     after = stats.after;
 
     if (stats.before.length === 0 || stats.after.length === 0) {

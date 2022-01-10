@@ -191,12 +191,17 @@ function run() {
         log('forcing send');
       }
 
+      const nextGames = stats.after.slice(0, 3).map(([time, game]) => {
+        const timeDiff = time - now;
+        return `${game} ${formatTimeDiff(timeDiff)}`;
+      }).join('\n');
+
       const embed = new MessageEmbed()
         .setTitle(cfg.marathonName)
         .setColor('4ebfed')
         .setURL('https://twitch.tv/gamesdonequick')
         .addField('Current Game', currentGame)
-        .addField('Next Game', `${nextGame} ${formatTimeDiff(timeDiff)}`)
+        .addField('Next Games', nextGames)
         .addField('Viewers', stats.totals[1], true)
         .addField('Donation Total', '$' + stats.totals[2].toFixed(0), true);
 

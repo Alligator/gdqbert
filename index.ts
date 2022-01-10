@@ -95,6 +95,7 @@ function persistSubs(subs: Subscriptions) {
 
 function getHelpEmbed() {
   return new MessageEmbed()
+    .setColor('4ebfed')
     .setTitle('gdqbert help')
     .setDescription('gdqbert responds to the following commands:')
     .addField('@gdqbert Game Name Here', 'get gdqbert to @ you when that game is starting.')
@@ -192,6 +193,7 @@ function run() {
 
       const embed = new MessageEmbed()
         .setTitle(cfg.marathonName)
+        .setColor('4ebfed')
         .setURL('https://twitch.tv/gamesdonequick')
         .addField('Current Game', currentGame)
         .addField('Next Game', `${nextGame} ${formatTimeDiff(timeDiff)}`)
@@ -207,7 +209,10 @@ function run() {
   }
 
   function getScheduleEmbed() {
-    const embed = new MessageEmbed();
+    const embed = new MessageEmbed()
+        .setColor('4ebfed')
+        .setTitle(cfg.marathonName)
+        .setURL('https://twitch.tv/gamesdonequick');
     const now = new Date().getTime() / 1000;
 
     for (let i = 0; i < 5; i++) {
@@ -218,10 +223,7 @@ function run() {
       const [time, name] = after[i];
       const timeDiff = time - now;
 
-      embed
-        .setTitle(cfg.marathonName)
-        .setURL('https://twitch.tv/gamesdonequick')
-        .addField(name, formatTimeDiff(timeDiff));
+      embed.addField(name, formatTimeDiff(timeDiff));
     }
 
     return embed;

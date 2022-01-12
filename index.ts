@@ -192,8 +192,7 @@ function run() {
       }
 
       const nextGames = stats.after.slice(0, 3).map(([time, game]) => {
-        const timeDiff = time - now;
-        return `${game} ${formatTimeDiff(timeDiff)}`;
+        return `${game} <t:${time}:R>`;
       }).join('\n');
 
       const embed = new MessageEmbed()
